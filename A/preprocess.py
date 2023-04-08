@@ -1,25 +1,38 @@
 import glob
 import os
-
+from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision import transforms
+from sklearn.model_selection import train_test_split
 
-from explore import load_dicom, MODALITIES
+from A.constants import DATA_TRANSFORMS
+from A.explore import load_dicom, MODALITIES
 
 
 class BrainImageDataSet(Dataset):
-    """ Brain image dataset. """
+    """This is the pytorch dataset Class.
+
+    We construct the dataset in the form of pytorch dataset.
+    The dataset is split into train, validation and test set.
+    Several modes of constructing dataset could be used.
+    mode 0: choose one image located in the middle of a given modality.
+    mode 1: choose images in the middle 20 percent of a given modality.
+    # mode 2: choose 64 images whose average pixel intensity is greatest among all modalities.
+    mode 2: choose one image located in the middle of each modality and combine them into an array
+    mode 3: choose 20 images located in the middle of each modality and combine them into an array
+
+
+    """
 
     # initialize train and test dataset, with randomness or not.
-    def __init__(self, label_csv_path, train_image_dir, modality, mode, split=None, train_test_split=0.8,
+    def __init__(self, label_csv_path, train_image_dir, identities, mode, modality=None,
                  transform=None):
         self.label_csv_path = label_csv_path
         self.train_image_dir = train_image_dir
-        self.split = split
         self.modality = modality
         self.transform = transform
         self.mode = mode
@@ -27,95 +40,179 @@ class BrainImageDataSet(Dataset):
         for index in train_df.index:
             train_df.iloc[index, 0] = str(train_df.iloc[index, 0]).zfill(5)
         self.train_df = train_df
+        self.label_list = list()
+        self.identities = identities
+        # print(self.identities)
 
-        if self.split == 'train':
-            self.ids = [a.split("/")[-1] for a in sorted(glob.glob(train_image_dir + "/*"))]
-            self.ids = self.ids[:int(len(self.ids) * train_test_split)]  # first 20% as validation
-            print(self.ids)
-
-        elif self.split == 'test':
-            self.ids = [a.split("/")[-1] for a in sorted(glob.glob(train_image_dir + "/*"))]
-            self.ids = self.ids[int(len(self.ids) * train_test_split):]  # last 80% as validation
-        else:
-            self.ids = [a.split("/")[-1] for a in sorted(glob.glob(train_image_dir + "/*"))]
-
-        if self.mode == 1:
-            img_list = list()
-            index_mapper = {}
-            index_count = 0
-            for i in range(len(train_df)):
-                subject_dir_path = os.path.join(self.train_image_dir, str(train_df.iloc[i]['BraTS21ID']).zfill(5))
+        if self.mode == 0:
+            img_path_list = list()
+            for i in range(len(self.identities)):
+                identity = self.identities[i]
+                subject_dir_path = os.path.join(self.train_image_dir, identity)
                 img_dir_path = os.path.join(subject_dir_path, self.modality)
                 t_paths = sorted(
                     glob.glob(os.path.join(img_dir_path, "*")),
                     key=lambda x: int(x[:-4].split("-")[-1]),
                 )
-                # choose the img in the middle 20 percent
+                # choose the img in the middle
+                img_path = t_paths[int(len(t_paths) * 0.5)]
+                img_path_list.append(img_path)
+                self.label_list.append(train_df.iloc[i]['MGMT_value'])
+            self.img_path_list = img_path_list
+
+        if self.mode == 1:
+            img_path_list = list()
+            index_mapper = {}
+            index_count = 0
+            img_num = 0
+            for i in range(len(self.identities)):
+                identity = self.identities[i]
+                subject_dir_path = os.path.join(self.train_image_dir, identity)
+                img_dir_path = os.path.join(subject_dir_path, self.modality)
+                t_paths = sorted(
+                    glob.glob(os.path.join(img_dir_path, "*")),
+                    key=lambda x: int(x[:-4].split("-")[-1]),
+                )
+                # TODO: choose the img in the middle 20 percent / 20 items
                 percentage = 0.1
-                img_start_index = int(len(t_paths) * (0.5 - percentage))
-                img_end_index = int(len(t_paths) * (0.5 + percentage))
+                img_mid_index = int(len(t_paths) * 0.5)
+                img_start_index = img_mid_index - 5
+                img_end_index = img_start_index + 10
                 for img_index in range(img_start_index, img_end_index):
                     img_path = t_paths[img_index]
-                    cur_image = load_dicom(img_path)
-                    img_list.append(cur_image)
-
+                    # cur_image = load_dicom(img_path)
+                    img_path_list.append(img_path)
                     index_mapper[index_count] = i
                     index_count = index_count + 1
-            self.img_list = img_list
+                    self.label_list.append(train_df.iloc[i]['MGMT_value'])
+                img_num = img_num + img_end_index - img_start_index
+            self.img_path_list = img_path_list
             self.index_mapper = index_mapper
+            self.img_num = img_num
+
+        if self.mode == 2:
+            img_path_list = list()
+            for i in range(len(self.identities)):
+                identity = self.identities[i]
+                subject_dir_path = os.path.join(self.train_image_dir, identity)
+                cur_img_list = list()
+                for modality in MODALITIES:
+                    img_dir_path = os.path.join(subject_dir_path, modality)
+                    t_paths = sorted(
+                        glob.glob(os.path.join(img_dir_path, "*")),
+                        key=lambda x: int(x[:-4].split("-")[-1]),
+                    )
+                    # choose the img in the middle
+                    img_path = t_paths[int(len(t_paths) * 0.5)]
+                    cur_img_list.append(img_path)
+                img_path_list.append(cur_img_list)
+                self.label_list.append(train_df.iloc[i]['MGMT_value'])
+            self.img_path_list = img_path_list
+
+        if self.mode == 3:
+            img_path_list = list()
+            index_mapper = {}
+            index_count = 0
+            img_num = 0
+            for i in range(len(self.identities)):
+                identity = self.identities[i]
+                subject_dir_path = os.path.join(self.train_image_dir, identity)
+                cur_img_list = list()
+
+                for j in range(len(MODALITIES)):
+                    modality = MODALITIES[j]
+                    img_dir_path = os.path.join(subject_dir_path, modality)
+                    t_paths = sorted(
+                        glob.glob(os.path.join(img_dir_path, "*")),
+                        key=lambda x: int(x[:-4].split("-")[-1]),
+                    )
+                    # choose the img in the middle
+                    # TODO: choose the img in the middle 20 percent / 20 items
+                    img_mid_index = int(len(t_paths) * 0.5)
+                    img_start_index = img_mid_index - 5
+                    img_end_index = img_start_index + 10
+                    cur_img_modal_list = list()
+                    for img_index in range(img_start_index, img_end_index):
+                        img_path = t_paths[img_index]
+                        # cur_image = load_dicom(img_path)
+                        cur_img_modal_list.append(img_path)
+                        if j == 0:
+                            index_mapper[index_count] = i
+                            index_count = index_count + 1
+                            self.label_list.append(train_df.iloc[i]['MGMT_value'])
+                    if j == 0:
+                        img_num = img_num + img_end_index - img_start_index
+                    cur_img_list.append(cur_img_modal_list)
+                img_path_list.append(cur_img_list)
+            self.img_path_list = img_path_list
+            self.index_mapper = index_mapper
+            self.img_num = img_num
 
     def __len__(self):
         train_df = pd.read_csv(self.label_csv_path)
 
         if self.mode == 0:
-            return len(self.ids)
+            return len(self.identities)
         if self.mode == 1:
-            img_num = 0
-            for i in range(len(train_df)):
-                subject_dir_path = os.path.join(self.train_image_dir, str(train_df.iloc[i]['BraTS21ID']).zfill(5))
-                img_dir_path = os.path.join(subject_dir_path, self.modality)
-                t_paths = sorted(
-                    glob.glob(os.path.join(img_dir_path, "*")),
-                    key=lambda x: int(x[:-4].split("-")[-1]),
-                )
-                # choose the img in the middle 20 percent
-                percentage = 0.1
-                img_start_index = int(len(t_paths) * (0.5 - percentage))
-                img_end_index = int(len(t_paths) * (0.5 + percentage))
-                img_num = img_num + img_end_index - img_start_index + 1
-            return img_num
+            return self.img_num
+        if self.mode == 2:
+            return len(self.identities)
+        if self.mode == 3:
+            return self.img_num
 
     def __getitem__(self, index):
         if torch.is_tensor(index):
             index = index.tolist()
+        image = None
+        label = None
         if self.mode == 0:
-            # should change index
-            cur_index = self.ids[index]
-            subject_dir_path = os.path.join(self.train_image_dir, cur_index)
-            img_dir_path = os.path.join(subject_dir_path, self.modality)
-            t_paths = sorted(
-                glob.glob(os.path.join(img_dir_path, "*")),
-                key=lambda x: int(x[:-4].split("-")[-1]),
-            )
-            # choose the img in the middle
-            img_path = t_paths[int(len(t_paths) * 0.5)]
-            image = load_dicom(img_path)
+
+            image = load_dicom(self.img_path_list[index])
             # label here stands for MGMT value
             # print(self.train_df['BraTS21ID'] == cur_index)
-            row = self.train_df.loc[self.train_df['BraTS21ID'] == cur_index]
-            label = row['MGMT_value'].values.item()
-            if self.transform:
-                image = self.transform(image)
-            return image, label
-        if self.mode == 1:
+            # row = self.train_df.loc[self.train_df['BraTS21ID'] == cur_index]
 
-            image = self.img_list[index]
+            label = self.train_df.iloc[index]['MGMT_value']
+            image = self.transform(image)
+
+        elif self.mode == 1:
+            image = load_dicom(self.img_path_list[index])
             # TODO: wrong index, need to be changed.
             label = self.train_df.iloc[self.index_mapper[index]]['MGMT_value']
-            sample = {'image': image, 'label': label}
-            if self.transform:
-                sample = self.transform(sample)
-            return sample
+            image = self.transform(image)
+
+        elif self.mode == 2:
+            # build the final image.
+            modality_img_path_list = self.img_path_list[index]
+            all_modality_img_list = list()
+            for single_modality_img_path in modality_img_path_list:
+                single_modality_img = load_dicom(single_modality_img_path)
+                transformed_single_modality_img = self.transform(single_modality_img)
+                all_modality_img_list.append(torch.squeeze(transformed_single_modality_img))
+
+            image = torch.stack(all_modality_img_list, 0)
+
+            label = self.train_df.iloc[index]['MGMT_value']
+
+        elif self.mode == 3:
+            # TODO: 10 is hard coded, need to change
+            subject_index = index // 10
+            img_frame_index = index % 10
+            # if subject_index >= len(self.img_path_list):
+            #     print(subject_index)
+            modality_img_path_list = self.img_path_list[subject_index]
+            all_modality_img_list = list()
+
+            for cur_modality_img_path_list in modality_img_path_list:
+                single_modality_img_path = cur_modality_img_path_list[img_frame_index]
+                single_modality_img = load_dicom(single_modality_img_path)
+                transformed_single_modality_img = self.transform(single_modality_img)
+                all_modality_img_list.append(torch.squeeze(transformed_single_modality_img))
+            image = torch.stack(all_modality_img_list, 0)
+
+            label = self.train_df.iloc[self.index_mapper[index]]['MGMT_value']
+
+        return image, label
 
 
 def load_data_path():
@@ -155,58 +252,109 @@ def batch_mean_and_sd(loader):
     return mean, std
 
 
-def make_dataset():
-    # TODO: Calculate mean and std for our costumed dataset
-    pre_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Resize((256, 256))]
-    )
+def data_preprocess(data_make_mode, modality=None):
     label_csv_path, train_image_dir = load_data_path()
 
-    brain_image_dataset = BrainImageDataSet(label_csv_path, train_image_dir, MODALITIES[0], 0, transform=pre_transform)
+    # TODO: Calculate mean and std for our costumed dataset
+    # pre_transform = transforms.Compose([
+    #     transforms.ToTensor(),
+    #     transforms.Resize((256, 256))]
+    # )
+    # # define different criterion for making our customed dataset
+    # brain_image_dataset = BrainImageDataSet(label_csv_path, train_image_dir, data_make_mode, modality=modality,
+    #                                         transform=pre_transform)
+    #
+    # dataloader = DataLoader(brain_image_dataset, batch_size=64, shuffle=True)
 
-    dataloader = DataLoader(brain_image_dataset, batch_size=64, shuffle=True)
+    # mean, std = batch_mean_and_sd(dataloader)
+    # print("mean and std: \n", mean, std)
 
-    mean, std = batch_mean_and_sd(dataloader)
-    print("mean and std: \n", mean, std)
-
-    data_transforms = {
-        'train': transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize((256, 256)),
-            # transforms.RandomHorizontalFlip(),
-            transforms.Normalize(mean, std)
-        ]),
-        'test': transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-    }
     # TODO: need to consider different modalities, different methods. Here we just define two methods. One is select
     #  the middle image from one modality of a subject, the other is selected the middle 20 percent images.
-    train_set = BrainImageDataSet(label_csv_path, train_image_dir, MODALITIES[0], 0, split='train',
-                                  transform=data_transforms['train'])
-    print(len(train_set)
-          )
-    test_set = BrainImageDataSet(label_csv_path, train_image_dir,
-                                 MODALITIES[0], 0, split='test', transform=data_transforms['test'])
-    print(len(test_set))
-    train_dataloader = DataLoader(train_set, batch_size=64, shuffle=True)
+    TEST_SIZE = 0.2
+    SEED = 42
 
-    # TODO: data augumentation and train test split. K-fold Cross validation
-    train_features, train_labels = next(iter(train_dataloader))
-    print(f"Feature batch shape: {train_features.size()}")
-    print(f"Labels batch shape: {train_labels.size()}")
-    img = train_features[0].squeeze()
-    label = train_labels[0]
-    plt.imshow(img, cmap="gray")
-    plt.show()
-    print(f"Label: {label}")
-    print("....")
-    return train_set, test_set
+    train_df = pd.read_csv(label_csv_path)
+    for index in train_df.index:
+        train_df.iloc[index, 0] = str(train_df.iloc[index, 0]).zfill(5)
+
+    # split train and test set in a stratified fashion
+    train_val_indices, test_indices, _, _ = train_test_split(
+        range(len(train_df)),
+        train_df['MGMT_value'],
+        stratify=train_df['MGMT_value'],
+        test_size=TEST_SIZE,
+        random_state=SEED
+    )
+    test_ids = train_df.loc[test_indices, 'BraTS21ID'].tolist()
+
+    # build k-fold cross validation set
+    k_folder = StratifiedKFold(n_splits=4, random_state=13, shuffle=True)
+    X = train_df.loc[train_val_indices, 'BraTS21ID']
+    y = train_df.loc[train_val_indices, 'MGMT_value']
+    fold_no = 1
+    k_fold_cv_ids_list = list()
+    for train_indices, val_indices in k_folder.split(X, y):
+        train_ids = train_df.loc[train_indices, 'BraTS21ID'].tolist()
+        val_ids = train_df.loc[val_indices, 'BraTS21ID'].tolist()
+        k_fold_cv_ids_list.append({'train_ids': train_ids, 'val_ids': val_ids})
+
+    data_transforms = DATA_TRANSFORMS
+
+    k_fold_cv_list = list()
+
+    for cur_fold_cv_ids in k_fold_cv_ids_list:
+        train_ids = cur_fold_cv_ids['train_ids']
+        val_ids = cur_fold_cv_ids['val_ids']
+        training_set = BrainImageDataSet(label_csv_path, train_image_dir, train_ids, data_make_mode,
+                                         modality=modality,
+                                         transform=data_transforms['train'])
+        # print(len(training_set))
+
+        validation_set = BrainImageDataSet(label_csv_path, train_image_dir, val_ids, data_make_mode,
+                                           modality=modality,
+                                           transform=data_transforms['val'])
+        k_fold_cv_list.append({'training_set': training_set, 'validation_set': validation_set})
+
+    test_set = BrainImageDataSet(label_csv_path, train_image_dir, test_ids, data_make_mode,
+                                 modality=modality,
+                                 transform=data_transforms['test'])
+    # print(len(test_set))
+
+
+    # generate indices: instead of the actual data we pass in integers instead, split train into train and val set
+    # train_indices, val_indices, _, _ = train_test_split(
+    #     range(len(train_set)),
+    #     train_set.label_list,
+    #     stratify=train_set.label_list,
+    #     test_size=TEST_SIZE,
+    #     random_state=SEED
+    # )
+
+    # # generate subset based on indices
+    # training_set = Subset(train_set, train_indices)
+    # validation_set = Subset(train_set, val_indices)
+
+    #  ------------ to be deleted ----------------
+    # train_dataloader = DataLoader(test_set, shuffle=True)
+    # train_features, train_labels = next(iter(train_dataloader))
+
+    #
+    # test_dataloader = None
+    # # # TODO: data augmentation and train test split. K-fold Cross validation
+    # train_features, train_labels = next(iter(train_dataloader))
+    # print(f"Feature batch shape: {train_features.size()}")
+    # print(f"Labels batch shape: {train_labels.size()}")
+    # img = train_features[0].squeeze()
+    # label = train_labels[0]
+    # plt.imshow(img, cmap="gray")
+    # plt.show()
+    # print(f"Label: {label}")
+    # print("....")
+    # #  ------------ to be deleted ----------------
+
+    return k_fold_cv_list, test_set
 
 
 if __name__ == '__main__':
-    make_dataset()
+    make_dataset(2, MODALITIES[1])
