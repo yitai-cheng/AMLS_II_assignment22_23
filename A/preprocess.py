@@ -1,14 +1,18 @@
+"""This file contains functions of data preprocessing.
+
+We define PyTorch dataset class.
+We select data by different data selection modes.
+Images are loaded and transformed by flipping, crop and resizing.
+The whole dataset is split into train, validation and test set.
+
+"""
 import glob
 import os
-from sklearn.model_selection import KFold, StratifiedKFold
-import numpy as np
 import pandas as pd
 import torch
-from matplotlib import pyplot as plt
-from torch.utils.data import Dataset, DataLoader, Subset
-from torchvision import transforms
+from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
-
+from torch.utils.data import Dataset
 from A.constants import DATA_TRANSFORMS
 from A.explore import load_dicom, MODALITIES
 
@@ -216,6 +220,10 @@ class BrainImageDataSet(Dataset):
 
 
 def load_data_path():
+    """Load data path.
+
+    :return: path for image directory and label csv file.
+    """
     current_dir = os.path.dirname(os.path.realpath(__file__))
     parent_dir = os.path.dirname(current_dir)
     data_dir = os.path.join(parent_dir, 'data')
@@ -253,6 +261,12 @@ def batch_mean_and_sd(loader):
 
 
 def data_preprocess(data_make_mode, modality=None):
+    """
+
+    :param data_make_mode: define the way of data selection
+    :param modality: If data_make_mode is 0 or 1, then modality is needed because we only need to select one modality.
+    :return: train, validation and test set.
+    """
     label_csv_path, train_image_dir = load_data_path()
 
     # TODO: Calculate mean and std for our costumed dataset
@@ -356,5 +370,6 @@ def data_preprocess(data_make_mode, modality=None):
     return k_fold_cv_list, test_set
 
 
-if __name__ == '__main__':
-    make_dataset(2, MODALITIES[1])
+# if __name__ == '__main__':
+
+

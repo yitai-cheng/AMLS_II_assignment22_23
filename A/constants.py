@@ -1,9 +1,9 @@
+"""Constants for the project."""
 from torchvision import transforms
 
 TRAIN_BATCH_SIZE = 64
 TRAIN_EPOCH_NUM = 20
 MODALITIES = ['FLAIR', 'T1w', 'T1wCE', 'T2w']
-
 DATA_TRANSFORMS = {
     'train': transforms.Compose([
         transforms.ToTensor(),

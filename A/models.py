@@ -1,9 +1,12 @@
+"""This file contains the model architectures for the project.
+
+PlainCNN, ResNet-34, EfficientNet-B0, MultiModalCNN, MultiModalResNet-34, MultiModalEfficientNet-B0 are defined in this file respectively.
+
+"""
+import timm
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torchvision import models
 from torch.nn import MultiheadAttention
-import timm
 
 
 # class PlainCNN(nn.Module):

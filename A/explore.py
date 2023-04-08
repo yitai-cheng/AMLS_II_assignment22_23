@@ -1,20 +1,26 @@
+"""Explore the original dataset.
+
+"""
+import glob
 import math
 import os
-import json
-import glob
 import random
-import collections
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pydicom
-# import cv2
-import matplotlib.pyplot as plt
 import seaborn as sns
 
 MODALITIES = ['FLAIR', 'T1w', 'T1wCE', 'T2w']
 
 
 def explore_dataset():
+    """Explore the dataset.
+
+    study the distribution of the number of slices for each modality.
+    visualize MRI images in dcm format
+
+    """
     current_dir = os.path.dirname(os.path.realpath(__file__))
     parent_dir = os.path.dirname(current_dir)
     data_dir = os.path.join(parent_dir, 'data')

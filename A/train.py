@@ -1,22 +1,23 @@
-import math
+"""This file defines the training process of the model.
+
+
+"""
 import os
 import time
-
-import numpy as np
-import pandas as pd
 import torch
-from matplotlib import pyplot as plt
 from sklearn.metrics import roc_auc_score
-from torch import nn, optim, tensor
+from torch import nn, optim
 from torch.utils.data import DataLoader
-
-from A.explore import MODALITIES
-# from models import PlainCNN, ResNet, ResidualBlock, MultiInputCNN, MultiModalCNN
-from A.preprocess import data_preprocess
 from A.constants import TRAIN_BATCH_SIZE, TRAIN_EPOCH_NUM
+from A.preprocess import data_preprocess
 
 
 class Trainer:
+    """Trainer class for training the model.
+
+    It contains the functions for training, validation and saving the models with the best validation score.
+
+    """
     def __init__(
             self,
             model,
@@ -151,6 +152,17 @@ class Trainer:
 
 
 def train_with_cross_validation(cross_validation_list, ml_model, ml_model_name, mode):
+    """Train and validation.
+
+    * Optimizer: Adam
+    * Loss function: CrossEntropyLoss
+
+    :param cross_validation_list: The list containing the train and validation set.
+    :param ml_model: The machine learning model to be fitted.
+    :param ml_model_name: The name of the machine learning model.
+    :param mode: Data selection mode.
+    :return: training accuracy and validation accuracy.
+    """
     current_dir = os.path.dirname(os.path.realpath(__file__))
     parent_dir = os.path.dirname(current_dir)
     model_dir = os.path.join(parent_dir, 'models')

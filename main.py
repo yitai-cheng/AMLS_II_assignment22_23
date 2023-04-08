@@ -1,3 +1,6 @@
+"""This is the entrance of the program.
+
+"""
 import gc
 import os
 from matplotlib import pyplot as plt
@@ -85,7 +88,7 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(result_dir, 'learning_curve_PlainCNN.png'))
 
-# # make comparison with data_make_mode = 3
+# make comparison with data_make_mode = 3
 single_modality_model_PlainCNN = A.PlainCNN()
 single_modality_model_ResNet34 = A.ResNet([3, 4, 6, 3])
 single_modality_model_EfficientNetB0 = A.EfficientNet()

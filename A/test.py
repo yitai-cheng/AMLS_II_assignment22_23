@@ -1,17 +1,18 @@
-import time
-
 import torch
-from sklearn.metrics import roc_auc_score
-from torch import nn
-from torch.utils.data import DataLoader
-
-from A.preprocess import data_preprocess
-from A.explore import MODALITIES
-from A.models import PlainCNN
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+from torch.utils.data import DataLoader
+from A.explore import MODALITIES
+from A.preprocess import data_preprocess
 
 
 def test_model(test_set, model, model_para_path):
+    """testing process
+
+    :param test_set: test set
+    :param model: the trained model
+    :param model_para_path: saved model parameters path
+    :return: confusion matrix, accuracy, precision, recall, f1 score as evaluation metrics for testing results.
+    """
     test_dataloader = DataLoader(test_set, batch_size=1, shuffle=False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # TODO: design a way to define the path correctly
