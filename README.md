@@ -1,5 +1,5 @@
 # AMLS_II_assignment22_23
-
+## This project is based on the past compitition on Kaggle: https://www.kaggle.com/competitions/rsna-miccai-brain-tumor-radiogenomic-classification
 A malignant tumor in the brain is a life-threatening condition. 
 The presence of Methylguanine methyltransferase (MGMT) promoter methylation has been shown to be a favorable prognostic factor and a strong predictor of responsiveness to chemotherapy. 
 In this project, machine learning based models are proposed to deal with the detection of MGMT promoter methylation instead of invasive surgeries taking brain tissues out of patients’ body. 
