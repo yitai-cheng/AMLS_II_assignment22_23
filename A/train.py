@@ -15,9 +15,21 @@ from A.preprocess import data_preprocess
 class Trainer:
     """Trainer class for training the model.
 
-    It contains the functions for training, validation and saving the models with the best validation score.
+    It contains the functions for training, validation, and saving the models with the best validation score.
+
+    Attributes:
+        model (nn.Module): The PyTorch model to be trained.
+        device (str): The device to train the model on, e.g., 'cpu' or 'cuda'.
+        optimizer (optim.Optimizer): The optimizer to use for training the model.
+        criterion (nn.Module): The loss function to use for training the model.
+        best_valid_score (float): The best validation score achieved so far.
+        n_patience (int): The number of epochs without improvement in validation score.
+        last_model (str): The file path of the last saved model.
+        train_acc_list (List[float]): List of training accuracy scores for each epoch.
+        valid_acc_list (List[float]): List of validation accuracy scores for each epoch.
 
     """
+
     def __init__(
             self,
             model,
@@ -37,6 +49,16 @@ class Trainer:
         self.valid_acc_list = list()
 
     def fit(self, epochs, train_dataloader, val_dataloader, save_path, patience):
+        """Trains the model and saves the best model based on validation score.
+
+               Args:
+                   epochs (int): The number of epochs to train the model.
+                   train_dataloader (DataLoader): The DataLoader for the training set.
+                   val_dataloader (DataLoader): The DataLoader for the validation set.
+                   save_path (str): The path to save the best model.
+                   patience (int): The number of epochs to wait before early stopping if the validation score doesn't improve.
+
+               """
         for n_epoch in range(1, epochs + 1):
             self.info_message("EPOCH: {}", n_epoch)
 
@@ -72,6 +94,15 @@ class Trainer:
                 break
 
     def train_epoch(self, train_dataloader):
+        """Performs one epoch of training.
+
+        Args:
+            train_dataloader (DataLoader): The DataLoader for the training set.
+
+        Returns:
+            tuple: A tuple containing the average training loss, training accuracy, and training time.
+
+        """
         self.model.train()
         t = time.time()
         correct_train = 0
@@ -103,6 +134,15 @@ class Trainer:
         return total_train_loss / len(train_dataloader), train_accuracy, int(time.time() - t)
 
     def valid_epoch(self, val_dataloader):
+        """Performs one epoch of validation.
+
+        Args:
+            val_dataloader (DataLoader): The DataLoader for the validation set.
+
+        Returns:
+            tuple: A tuple containing the average validation loss, validation accuracy, and validation time.
+
+        """
         self.model.eval()
         t = time.time()
         val_labels_all = list()
@@ -134,6 +174,15 @@ class Trainer:
         return total_val_loss / len(val_dataloader), val_accuracy, int(time.time() - t)
 
     def save_model(self, n_epoch, save_path, loss, acc):
+        """Saves the model to a specified file path.
+
+        Args:
+            n_epoch (int): The current epoch number.
+            save_path (str): The path to save the model.
+            loss (float): The validation loss at the current epoch.
+            acc (float): The validation accuracy at the current epoch.
+
+        """
 
         self.last_model = f"{save_path}-e{n_epoch}-loss{loss:.3f}-acc{acc:.3f}.pth"
         torch.save(
@@ -148,6 +197,14 @@ class Trainer:
 
     @staticmethod
     def info_message(message, *args, end="\n"):
+        """Prints a formatted information message.
+
+        Args:
+            message (str): The message to be formatted and printed.
+            *args: The arguments to be used in formatting the message.
+            end (str, optional): The end character for the printed message. Defaults to "\n".
+
+        """
         print(message.format(*args), end=end)
 
 
@@ -202,6 +259,7 @@ def train_with_cross_validation(cross_validation_list, ml_model, ml_model_name, 
 
     return trainer.train_acc_list, trainer.valid_acc_list
     # cv_step += 1
+
 
 # model.load_state_dict(torch.load(PATH))
 
